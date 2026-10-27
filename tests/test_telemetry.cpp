@@ -3,16 +3,24 @@
 
 namespace {
 void buildPacket(int16_t ax, int16_t ay, int16_t az, uint8_t* out_frame) {
+    const uint16_t raw_ax = static_cast<uint16_t>(ax);
+    const uint16_t raw_ay = static_cast<uint16_t>(ay);
+    const uint16_t raw_az = static_cast<uint16_t>(az);
     out_frame[0] = TelemetryParser::SYNC_BYTE_1;
     out_frame[1] = TelemetryParser::SYNC_BYTE_2;
-    out_frame[2] = static_cast<uint8_t>((ax >> 8) & 0xFF);
-    out_frame[3] = static_cast<uint8_t>(ax & 0xFF);
-    out_frame[4] = static_cast<uint8_t>((ay >> 8) & 0xFF);
-    out_frame[5] = static_cast<uint8_t>(ay & 0xFF);
-    out_frame[6] = static_cast<uint8_t>((az >> 8) & 0xFF);
-    out_frame[7] = static_cast<uint8_t>(az & 0xFF);
+    out_frame[2] = static_cast<uint8_t>(raw_ax >> 8);
+    out_frame[3] = static_cast<uint8_t>(raw_ax & 0xFF);
+    out_frame[4] = static_cast<uint8_t>(raw_ay >> 8);
+    out_frame[5] = static_cast<uint8_t>(raw_ay & 0xFF);
+    out_frame[6] = static_cast<uint8_t>(raw_az >> 8);
+    out_frame[7] = static_cast<uint8_t>(raw_az & 0xFF);
     out_frame[8] = TelemetryParser::computeXorChecksum(&out_frame[2]);
 }
+}
+
+TEST(TelemetryParserTest, ComputesXorChecksumOverSixPayloadBytes) {
+    const uint8_t payload[] = {1, 2, 3, 4, 5, 6};
+    EXPECT_EQ(TelemetryParser::computeXorChecksum(payload), 0x07);
 }
 
 TEST(TelemetryParserTest, LevelFlightZeroPitchAndBank) {
@@ -53,6 +61,26 @@ TEST(TelemetryParserTest, RejectsInvalidSyncHeader) {
 
     HudState state;
     EXPECT_FALSE(TelemetryParser::parseFrame(frame, 9, state));
+    EXPECT_FALSE(state.valid);
+}
+
+TEST(TelemetryParserTest, RejectsNullAndTruncatedFrames) {
+    HudState state;
+    uint8_t frame[TelemetryParser::FRAME_SIZE] = {};
+
+    EXPECT_FALSE(TelemetryParser::parseFrame(nullptr, TelemetryParser::FRAME_SIZE, state));
+    EXPECT_FALSE(state.valid);
+
+    EXPECT_FALSE(TelemetryParser::parseFrame(frame, TelemetryParser::FRAME_SIZE - 1, state));
+    EXPECT_FALSE(state.valid);
+}
+
+TEST(TelemetryParserTest, RejectsAllZeroAcceleration) {
+    uint8_t frame[TelemetryParser::FRAME_SIZE];
+    buildPacket(0, 0, 0, frame);
+
+    HudState state;
+    EXPECT_FALSE(TelemetryParser::parseFrame(frame, sizeof(frame), state));
     EXPECT_FALSE(state.valid);
 }
 

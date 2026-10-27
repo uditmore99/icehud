@@ -1,0 +1,108 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  host-linux:
+    name: HUD build and GoogleTest (Linux)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+
+      - name: Install SDL2 and build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends \
+            build-essential cmake ninja-build libsdl2-dev
+
+      - name: Configure
+        run: >-
+          cmake -S . -B build -G Ninja
+          -DCMAKE_BUILD_TYPE=Release
+          -DBUILD_TESTING=ON
+
+      - name: Build app and tests
+        run: cmake --build build --target hud_app hud_tests --parallel
+
+      - name: Run GoogleTest suite
+        run: ctest --test-dir build --output-on-failure
+
+  host-windows:
+    name: HUD build and GoogleTest (Windows)
+    runs-on: windows-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Set MSYS2-friendly line endings
+        shell: pwsh
+        run: git config --global core.autocrlf input
+
+      - name: Check out source
+        uses: actions/checkout@v7
+
+      - name: Set up UCRT64 compiler and SDL2
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          update: true
+          install: >-
+            mingw-w64-ucrt-x86_64-toolchain
+            mingw-w64-ucrt-x86_64-SDL2
+            mingw-w64-ucrt-x86_64-cmake
+            mingw-w64-ucrt-x86_64-ninja
+
+      - name: Configure
+        shell: msys2 {0}
+        run: >-
+          cmake -S . -B build -G Ninja
+          -DCMAKE_BUILD_TYPE=Release
+          -DBUILD_TESTING=ON
+          -DCMAKE_CXX_COMPILER=/ucrt64/bin/g++.exe
+          -DSDL2_DIR=/ucrt64/lib/cmake/SDL2
+
+      - name: Build app and tests
+        shell: msys2 {0}
+        run: cmake --build build --target hud_app hud_tests --parallel
+
+      - name: Run GoogleTest suite
+        shell: msys2 {0}
+        run: ctest --test-dir build --output-on-failure
+
+  fpga-linux:
+    name: FPGA bitstream build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+
+      - name: Install iCE40 toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends \
+            ghdl yosys nextpnr-ice40 fpga-icestorm make
+
+      - name: Build bitstream
+        run: make -C rtl -f MakeFile
+
+      - name: Keep bitstream as a workflow artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: icehud-bitstream
+          path: rtl/hud_top.bin
+          if-no-files-found: error
+          retention-days: 14

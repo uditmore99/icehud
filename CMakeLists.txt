@@ -27,33 +27,37 @@ endif()
 add_executable(hud_app
     src/main.cpp
     src/hud_renderer.cpp
+    src/attitude_smoother.cpp
     src/telemetry_parser.cpp
 )
 target_include_directories(hud_app PRIVATE include)
 target_link_libraries(hud_app PRIVATE SDL2::SDL2main SDL2::SDL2)
 
-# 3. Fetch GoogleTest
-enable_testing()
-include(FetchContent)
-FetchContent_Declare(
-    googletest
-    URL https://github.com/google/googletest/archive/refs/tags/v1.14.0.zip
-)
-set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
-FetchContent_MakeAvailable(googletest)
+# 3. GoogleTest unit tests. Disable with -DBUILD_TESTING=OFF for app-only builds.
+include(CTest)
+if(BUILD_TESTING)
+    include(FetchContent)
+    FetchContent_Declare(
+        googletest
+        URL https://github.com/google/googletest/archive/refs/tags/v1.14.0.zip
+    )
+    set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+    FetchContent_MakeAvailable(googletest)
 
-# 4. GoogleTest Unit Test Suite (Bypassing static library)
-add_executable(hud_tests
-    tests/test_telemetry.cpp
-    src/telemetry_parser.cpp
-)
-target_include_directories(hud_tests PRIVATE include)
-target_link_libraries(hud_tests PRIVATE GTest::gtest_main)
+    add_executable(hud_tests
+        tests/test_telemetry.cpp
+        tests/test_attitude_smoother.cpp
+        src/telemetry_parser.cpp
+        src/attitude_smoother.cpp
+    )
+    target_include_directories(hud_tests PRIVATE include)
+    target_link_libraries(hud_tests PRIVATE GTest::gtest_main)
 
-include(GoogleTest)
-gtest_discover_tests(hud_tests)
+    include(GoogleTest)
+    gtest_discover_tests(hud_tests)
+endif()
 
-# 5. FPGA bitstream. Include this in the default build when the complete
+# 4. FPGA bitstream. Include this in the default build when the complete
 # open-source FPGA toolchain is installed; the host HUD alone cannot rebuild
 # the VHDL or the pin constraints.
 find_program(GHDL_EXECUTABLE NAMES ghdl)

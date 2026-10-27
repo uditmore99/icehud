@@ -2,6 +2,8 @@
 
 **An FPGA-driven aviation HUD, built around an iCE40UP5K and an MPU6050.**
 
+[![CI](https://github.com/uditmore99/icehud/actions/workflows/ci.yml/badge.svg)](https://github.com/uditmore99/icehud/actions/workflows/ci.yml)
+
 ICEHUD reads accelerometer data over I²C, sends it from the FPGA over UART, and renders a green-on-black attitude display on a Windows PC. The FPGA logic is written in VHDL; the desktop application is C++ and SDL2.
 
 <p align="center">
@@ -103,12 +105,13 @@ $env:PATH = "C:\msys64\mingw64\bin;$env:PATH"
 
 cmake -S . -B build -G "MinGW Makefiles" `
   -DCMAKE_CXX_COMPILER=C:/msys64/mingw64/bin/g++.exe `
-  -DSDL2_DIR=C:/msys64/mingw64/lib/cmake/SDL2
+  -DSDL2_DIR=C:/msys64/mingw64/lib/cmake/SDL2 `
+  -DBUILD_TESTING=ON
 
 cmake --build build --target hud_app
 ```
 
-The project uses CMake's `FetchContent` to obtain GoogleTest 1.14.0 during the first configure, so that first configure needs internet access. SDL2's runtime DLL is in the MINGW64 `bin` directory; keeping that directory on `PATH` also lets Windows find it when the app starts.
+The project uses CMake's `FetchContent` to obtain GoogleTest 1.14.0 during the first configure, so that first configure needs internet access. Use `-DBUILD_TESTING=OFF` if you only want to build the app and do not want CMake to fetch GoogleTest. SDL2's runtime DLL is in the MINGW64 `bin` directory; keeping that directory on `PATH` also lets Windows find it when the app starts.
 
 ### 3. Run the app
 
@@ -197,7 +200,13 @@ cmake --build build --target hud_tests
 ctest --test-dir build --output-on-failure
 ```
 
-The tests cover level attitude, 45-degree pitch and bank, invalid sync, and a corrupted checksum. The test target is separate from the app and FPGA build targets.
+The GoogleTest suite is device-independent: it does not need the FPGA, a COM port, or SDL to run. Parser tests cover the checksum, level attitude, known 45-degree pitch and bank vectors, invalid sync, truncated input, null input, all-zero acceleration, and a corrupted checksum. Smoother tests cover first-sample behavior, the low-pass response, roll wraparound, and ignoring invalid samples.
+
+### Continuous integration
+
+The [`CI` workflow](.github/workflows/ci.yml) runs on pushes, pull requests, and manual dispatch. It builds the HUD and runs GoogleTest on Linux and Windows. The Windows runner uses MSYS2 UCRT64; the local commands above match the existing MINGW64 setup. A separate Linux job builds the iCE40 bitstream and uploads `hud_top.bin` as a downloadable workflow artifact for 14 days.
+
+These checks prove that the desktop code compiles, the tested parser and smoothing behavior pass, and the FPGA source can be synthesized and placed. They do not exercise a physical MPU6050 or confirm I²C electrical behavior; that still requires the board, sensor, and (for bus-level inspection) a logic analyzer.
 
 ## Troubleshooting
 

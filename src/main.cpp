@@ -1,5 +1,6 @@
 #include "telemetry_parser.hpp"
 #include "hud_renderer.hpp"
+#include "attitude_smoother.hpp"
 #include <cmath>
 #include <cstdio>
 #include <cstring>
@@ -92,34 +93,6 @@ private:
 #else
     int fd_ = -1;
 #endif
-};
-
-class AttitudeSmoother {
-public:
-    void apply(HudState& state) {
-        if (!state.valid) return;
-
-        if (!initialized_) {
-            pitch_deg_ = state.pitch_deg;
-            bank_deg_ = state.bank_deg;
-            initialized_ = true;
-        } else {
-            pitch_deg_ += kAlpha * (state.pitch_deg - pitch_deg_);
-
-            // Use the shortest angular path so roll remains smooth across +/-180 degrees.
-            const double bank_delta = std::remainder(state.bank_deg - bank_deg_, 360.0);
-            bank_deg_ = std::remainder(bank_deg_ + kAlpha * bank_delta, 360.0);
-        }
-
-        state.pitch_deg = pitch_deg_;
-        state.bank_deg = bank_deg_;
-    }
-
-private:
-    static constexpr double kAlpha = 0.18;
-    bool initialized_ = false;
-    double pitch_deg_ = 0.0;
-    double bank_deg_ = 0.0;
 };
 
 int main(int argc, char* argv[]) {
