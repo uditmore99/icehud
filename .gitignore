@@ -1,0 +1,7 @@
+build/
+*.bin
+*.asc
+*.json
+*.cf
+*.o
+synth_netlist.v

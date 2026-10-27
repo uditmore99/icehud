@@ -1,0 +1,19 @@
+TOP = hud_top
+PCF = icesugar.pcf
+VHDL_SRCS = clk_divider.vhd i2c_mpu6050_fsm.vhd uart_tx.vhd hud_top.vhd
+
+all: $(TOP).bin
+
+$(TOP).json: $(VHDL_SRCS)
+	ghdl -a --std=08 $(VHDL_SRCS)
+	ghdl --synth --std=08 --out=verilog $(TOP) > synth_netlist.v
+	yosys -p "read_verilog synth_netlist.v; synth_ice40 -top $(TOP) -json $(TOP).json"
+
+$(TOP).asc: $(TOP).json $(PCF)
+	nextpnr-ice40 --up5k --package sg48 --pcf $(PCF) --json $(TOP).json --asc $(TOP).asc
+
+$(TOP).bin: $(TOP).asc
+	icepack $(TOP).asc $(TOP).bin
+
+clean:
+	rm -f *.cf *.o synth_netlist.v $(TOP).json $(TOP).asc $(TOP).bin

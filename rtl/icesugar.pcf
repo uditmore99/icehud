@@ -1,0 +1,16 @@
+# MuseLab iCESugar v1.5 (Lattice iCE40UP5K-SG48)
+# 12 MHz system clock from onboard iCELink
+set_io clk 35
+set_frequency clk 12
+
+# Onboard USB-CDC UART Bridge (FPGA TX -> iCELink -> Host PC USB Serial)
+set_io uart_tx 6
+
+# I2C Interface to MPU6050 IMU (PMOD3)
+set_io i2c_scl 31
+set_io i2c_sda 34
+
+# Onboard Active-Low RGB Status LEDs (iCESugar v1.5 standard mapping)
+set_io led_b_n 41
+set_io led_r_n 40
+set_io led_g_n 39
