@@ -7,8 +7,10 @@ set_frequency clk 12
 set_io uart_tx 6
 
 # I2C Interface to MPU6050 IMU (PMOD3)
-set_io i2c_scl 31
-set_io i2c_sda 34
+# The FPGA drives these open-drain lines low and releases them for logic high.
+# Enable UP5K pull-ups as a fallback when the PMOD does not provide its own.
+set_io -pullup yes -pullup_resistor 6P8K i2c_scl 31
+set_io -pullup yes -pullup_resistor 6P8K i2c_sda 34
 
 # Onboard Active-Low RGB Status LEDs (iCESugar v1.5 standard mapping)
 set_io led_b_n 41

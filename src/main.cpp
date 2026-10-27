@@ -94,6 +94,34 @@ private:
 #endif
 };
 
+class AttitudeSmoother {
+public:
+    void apply(HudState& state) {
+        if (!state.valid) return;
+
+        if (!initialized_) {
+            pitch_deg_ = state.pitch_deg;
+            bank_deg_ = state.bank_deg;
+            initialized_ = true;
+        } else {
+            pitch_deg_ += kAlpha * (state.pitch_deg - pitch_deg_);
+
+            // Use the shortest angular path so roll remains smooth across +/-180 degrees.
+            const double bank_delta = std::remainder(state.bank_deg - bank_deg_, 360.0);
+            bank_deg_ = std::remainder(bank_deg_ + kAlpha * bank_delta, 360.0);
+        }
+
+        state.pitch_deg = pitch_deg_;
+        state.bank_deg = bank_deg_;
+    }
+
+private:
+    static constexpr double kAlpha = 0.18;
+    bool initialized_ = false;
+    double pitch_deg_ = 0.0;
+    double bank_deg_ = 0.0;
+};
+
 int main(int argc, char* argv[]) {
     bool sim_mode = true;
     std::string port_name;
@@ -119,6 +147,7 @@ int main(int argc, char* argv[]) {
     }
 
     HudState state;
+    AttitudeSmoother attitude_smoother;
     std::vector<uint8_t> rx_fifo;
     bool running = true;
     uint32_t start_ticks = SDL_GetTicks();
@@ -150,7 +179,9 @@ int main(int argc, char* argv[]) {
                 0
             };
             frame[8] = TelemetryParser::computeXorChecksum(&frame[2]);
-            TelemetryParser::parseFrame(frame, 9, state);
+            if (TelemetryParser::parseFrame(frame, 9, state)) {
+                attitude_smoother.apply(state);
+            }
         } else {
             uint8_t tmp[64];
             int n = serial.readBytes(tmp, sizeof(tmp));
@@ -159,7 +190,9 @@ int main(int argc, char* argv[]) {
             }
             while (rx_fifo.size() >= TelemetryParser::FRAME_SIZE) {
                 if (rx_fifo[0] == 0xAA && rx_fifo[1] == 0x55) {
-                    TelemetryParser::parseFrame(rx_fifo.data(), TelemetryParser::FRAME_SIZE, state);
+                    if (TelemetryParser::parseFrame(rx_fifo.data(), TelemetryParser::FRAME_SIZE, state)) {
+                        attitude_smoother.apply(state);
+                    }
                     rx_fifo.erase(rx_fifo.begin(), rx_fifo.begin() + TelemetryParser::FRAME_SIZE);
                 } else {
                     rx_fifo.erase(rx_fifo.begin());

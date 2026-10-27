@@ -51,6 +51,7 @@ begin
                 state    <= ST_INIT_START;
                 scl_low  <= '0';
                 sda_low  <= '0';
+                ack_ok   <= '1';
                 bus_ok   <= '0';
                 bus_err  <= '0';
             elsif tick_400k = '1' then
@@ -58,7 +59,11 @@ begin
                     -- 1. Wake up MPU6050: Write 0x00 to PWR_MGMT_1 (0x6B)
                     when ST_INIT_START =>
                         case phase is
-                            when "00" => scl_low <= '0'; sda_low <= '0'; phase <= "01";
+                            when "00" =>
+                                scl_low <= '0';
+                                sda_low <= '0';
+                                ack_ok  <= '1';
+                                phase   <= "01";
                             when "01" => sda_low <= '1'; phase <= "10";
                             when others =>
                                 scl_low <= '1'; phase <= "00";
@@ -85,7 +90,8 @@ begin
                             when "00" => scl_low <= '1'; sda_low <= '0'; phase <= "01";
                             when "01" => scl_low <= '0'; phase <= "10";
                             when "10" =>
-                                if i2c_sda = '0' then ack_ok <= '1'; else ack_ok <= '0'; end if;
+                                -- Keep any NACK sticky through the whole wake/read cycle.
+                                if i2c_sda /= '0' then ack_ok <= '0'; end if;
                                 phase <= "11";
                             when others =>
                                 scl_low <= '1'; phase <= "00";
@@ -181,8 +187,10 @@ begin
                             when others =>
                                 sda_low      <= '0';
                                 phase        <= "00";
-                                accel_data   <= shift_buf;
-                                sample_valid <= '1';
+                                if ack_ok = '1' then
+                                    accel_data   <= shift_buf;
+                                    sample_valid <= '1';
+                                end if;
                                 bus_ok       <= ack_ok;
                                 bus_err      <= not ack_ok;
                                 gap_cnt      <= (others => '0');

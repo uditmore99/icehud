@@ -94,7 +94,7 @@ void HudRenderer::render(const HudState& state, bool sim_mode) {
 
     const double cx = width_ * 0.5;
     const double cy = height_ * 0.5;
-    const double bank_rad = -state.bank_deg * DEG_TO_RAD;
+    const double bank_rad = state.bank_deg * DEG_TO_RAD;
     const double px_per_deg = 6.5;
     const double pitch_offset = state.pitch_deg * px_per_deg;
 

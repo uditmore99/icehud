@@ -12,6 +12,17 @@ endif()
 # 1. Require SDL2 (Will fail loudly if pacman install didn't work)
 find_package(SDL2 CONFIG REQUIRED)
 
+# The MSYS2 SDL2 package exports both its include root and include/SDL2.
+# This target includes <SDL.h>, so only the latter is needed. Keeping the
+# parent include root in the system path breaks GCC's include_next lookup for
+# standard headers such as stdlib.h in this MinGW build.
+if(TARGET SDL2::SDL2)
+    set_property(TARGET SDL2::SDL2 PROPERTY INTERFACE_INCLUDE_DIRECTORIES "${SDL2_INCLUDE_DIR}")
+endif()
+if(TARGET SDL2::SDL2main)
+    set_property(TARGET SDL2::SDL2main PROPERTY INTERFACE_INCLUDE_DIRECTORIES "${SDL2_INCLUDE_DIR}")
+endif()
+
 # 2. SDL2 Graphical HUD Application (Bypassing static library)
 add_executable(hud_app
     src/main.cpp
@@ -41,3 +52,25 @@ target_link_libraries(hud_tests PRIVATE GTest::gtest_main)
 
 include(GoogleTest)
 gtest_discover_tests(hud_tests)
+
+# 5. FPGA bitstream. Include this in the default build when the complete
+# open-source FPGA toolchain is installed; the host HUD alone cannot rebuild
+# the VHDL or the pin constraints.
+find_program(GHDL_EXECUTABLE NAMES ghdl)
+find_program(YOSYS_EXECUTABLE NAMES yosys)
+find_program(NEXTPNR_ICE40_EXECUTABLE NAMES nextpnr-ice40)
+find_program(ICEPACK_EXECUTABLE NAMES icepack)
+find_program(RTL_MAKE_EXECUTABLE NAMES make gmake mingw32-make)
+
+if(GHDL_EXECUTABLE AND YOSYS_EXECUTABLE AND NEXTPNR_ICE40_EXECUTABLE AND
+   ICEPACK_EXECUTABLE AND RTL_MAKE_EXECUTABLE)
+    add_custom_target(fpga_firmware ALL
+        COMMAND "${RTL_MAKE_EXECUTABLE}" -f MakeFile
+        WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/rtl"
+        BYPRODUCTS "${CMAKE_CURRENT_SOURCE_DIR}/rtl/hud_top.bin"
+        COMMENT "Building the iCE40 FPGA bitstream"
+        VERBATIM
+    )
+else()
+    message(STATUS "FPGA bitstream target disabled: install GHDL, Yosys, nextpnr-ice40, icepack, and make")
+endif()
