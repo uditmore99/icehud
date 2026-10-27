@@ -81,6 +81,45 @@ jobs:
         shell: msys2 {0}
         run: ctest --test-dir build --output-on-failure
 
+      - name: Assemble the Windows package
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: msys2 {0}
+        run: |
+          mkdir -p dist/icehud-windows
+          cp build/hud_app.exe dist/icehud-windows/
+          cp /ucrt64/bin/SDL2.dll \
+            /ucrt64/bin/libgcc_s_seh-1.dll \
+            /ucrt64/bin/libstdc++-6.dll \
+            /ucrt64/bin/libwinpthread-1.dll \
+            dist/icehud-windows/
+          cp /ucrt64/share/licenses/SDL2/LICENSE.txt \
+            dist/icehud-windows/SDL2-LICENSE.txt
+          printf '%s\n' \
+            'ICEHUD for Windows' \
+            '' \
+            'Extract every file in this folder together.' \
+            'Run hud_app.exe --sim for the demo, or hud_app.exe COM5 for live telemetry.' \
+            'Replace COM5 with the serial port shown in Windows Device Manager.' \
+            'Press Esc to close the HUD.' \
+            '' \
+            'SDL2 and MinGW runtime DLLs are included beside the app.' \
+            'SDL2 is distributed under the zlib license; see SDL2-LICENSE.txt.' \
+            > dist/icehud-windows/README.txt
+
+      - name: Create Windows ZIP
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        run: Compress-Archive -Path dist/icehud-windows/* -DestinationPath dist/icehud-windows.zip
+
+      - name: Keep Windows package as a workflow artifact
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: actions/upload-artifact@v7
+        with:
+          name: icehud-windows
+          path: dist/icehud-windows.zip
+          if-no-files-found: error
+          retention-days: 14
+
   fpga-linux:
     name: FPGA bitstream build
     runs-on: ubuntu-24.04
@@ -106,3 +145,33 @@ jobs:
           path: rtl/hud_top.bin
           if-no-files-found: error
           retention-days: 14
+
+  publish-release:
+    name: Publish GitHub Release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [host-linux, host-windows, fpga-linux]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - name: Download FPGA bitstream
+        uses: actions/download-artifact@v7
+        with:
+          name: icehud-bitstream
+          path: release-assets
+
+      - name: Download Windows app package
+        uses: actions/download-artifact@v7
+        with:
+          name: icehud-windows
+          path: release-assets
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          gh release create "$GITHUB_REF_NAME"
+          release-assets/hud_top.bin
+          release-assets/icehud-windows.zip
+          --title "ICEHUD $GITHUB_REF_NAME"
+          --generate-notes

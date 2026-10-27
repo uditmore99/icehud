@@ -208,6 +208,19 @@ The [`CI` workflow](.github/workflows/ci.yml) runs on pushes, pull requests, and
 
 These checks prove that the desktop code compiles, the tested parser and smoothing behavior pass, and the FPGA source can be synthesized and placed. They do not exercise a physical MPU6050 or confirm I²C electrical behavior; that still requires the board, sensor, and (for bus-level inspection) a logic analyzer.
 
+### GitHub Releases
+
+Push a version tag such as `v1.0.0` to create a GitHub Release:
+
+```powershell
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+The workflow builds and tests the Windows app, rebuilds the FPGA bitstream, and attaches two files to the Release: `icehud-windows.zip` and `hud_top.bin`. The ZIP contains the app, its SDL2 and MinGW runtime DLLs, the SDL2 license, and a short run guide. Extract the ZIP as a folder and keep its files together. The bitstream can be copied to the iCESugar's iCELink drive to program the board.
+
+The Release is created only after the Linux and Windows build/test jobs and the FPGA build succeed. GitHub generates release notes from changes since the previous release.
+
 ## Troubleshooting
 
 | Symptom | Check |
